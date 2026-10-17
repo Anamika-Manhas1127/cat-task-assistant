@@ -1,0 +1,17 @@
+{
+  "name": "cat-task-assistant-desktop",
+  "version": "1.0.0",
+  "description": "A floating talking cat productivity companion powered by Gemma 4",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "diagnose:gemma": "node diagnose-gemma.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0"
+  }
+}

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="theme-color" content="#fff8f4" />
+<title>Cat Task Assistant ✿</title>
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <a class="brand" href="./" aria-label="Cat Task Assistant home">
+      <span class="brand-mark">ฅ</span>
+      <span><strong>purr<span>ductive</span></strong><small>your cozy little planner</small></span>
+    </a>
+    <div class="side-label" data-i18n="workspace">WORKSPACE</div>
+    <button class="nav-item active" data-view="today"><span class="nav-icon">☀</span><span data-i18n="today">Today</span><span class="nav-count" id="nav-count">0</span></button>
+    <button class="nav-item" data-view="history"><span class="nav-icon">◷</span><span data-i18n="history">Task history</span></button>
+    <div class="side-cat-card">
+      <div class="side-cat" aria-hidden="true">
+        <svg viewBox="0 0 150 125" role="img" aria-label="Cute cat illustration"><ellipse cx="76" cy="111" rx="42" ry="7" fill="#e9cbd0"/><path d="M43 44 34 10 61 29M91 29 117 9 109 47" fill="#e6a9b7" stroke="#72545e" stroke-width="4" stroke-linejoin="round"/><path d="M39 43Q35 27 54 25Q76 17 100 27Q119 37 112 67Q108 92 76 95Q44 93 37 70Z" fill="#fff0e8" stroke="#72545e" stroke-width="4"/><path d="M50 56Q57 48 64 56M87 56Q95 48 101 56" fill="none" stroke="#72545e" stroke-width="4" stroke-linecap="round"/><path d="M71 66Q76 71 81 66Q77 77 71 66Z" fill="#d7899d"/><path d="M76 73V77M76 77Q70 83 65 77M76 77Q82 83 87 77" fill="none" stroke="#72545e" stroke-width="2.5" stroke-linecap="round"/><path d="M45 65 23 61M45 73 23 76M106 65 129 60M106 73 128 78" stroke="#72545e" stroke-width="2" stroke-linecap="round"/><path d="M56 31Q73 40 92 31" stroke="#f1c7d0" stroke-width="5" fill="none" stroke-linecap="round"/></svg>
+      </div>
+      <p data-i18n="littleReminder">A little reminder…</p>
+      <strong data-i18n="progressNotPerfection">Progress, not purrfection.</strong>
+      <span data-i18n="oneThing">One small thing at a time. ♡</span>
+    </div>
+    <div class="sidebar-bottom">
+      <div class="avatar-mini">🐱</div><div><strong data-i18n="yourBuddy">Your cat buddy</strong><small data-i18n="hereToHelp">Here to help, not judge.</small></div>
+      <span class="online-dot"></span>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div class="mobile-brand"><span>ฅ</span> purrductive</div>
+      <div class="top-date"><span class="sun-dot">✿</span><span id="today-date">A cozy day</span></div>
+      <div class="top-actions">
+        <label class="language-label" for="language-select">文 <span data-i18n="language">Language</span></label>
+        <select id="language-select" aria-label="Choose language">
+          <option value="en">English</option><option value="hi">हिन्दी</option><option value="kn">ಕನ್ನಡ</option><option value="ja">日本語</option>
+        </select>
+      </div>
+    </header>
+
+    <section class="welcome-row">
+      <div class="welcome-copy">
+        <span class="eyebrow" data-i18n="littleSteps">A LITTLE PAW-SITIVITY GOES A LONG WAY</span>
+        <h1><span data-i18n="hello">Hello, sunshine</span> <span class="wave">✿</span></h1>
+        <p data-i18n="welcomeSub">Let's make today feel a little lighter, one task at a time.</p>
+        <div class="daily-note"><span class="note-star">✦</span><span data-i18n="note">You don't have to do it all. Just start with one.</span></div>
+      </div>
+      <div class="hero-cat-wrap">
+        <div class="hero-sparkle s1">✦</div><div class="hero-sparkle s2">✧</div>
+        <div class="hero-blob"></div>
+        <svg class="hero-cat" viewBox="0 0 230 190" role="img" aria-label="Smiling peach cat illustration">
+          <ellipse cx="115" cy="169" rx="69" ry="11" fill="#e7c7d0"/>
+          <path d="M67 60 53 17 92 42M144 42 180 15 166 64" fill="#f3c5cc" stroke="#74545b" stroke-width="5" stroke-linejoin="round"/>
+          <path d="M64 56Q56 34 86 30Q115 20 148 31Q176 42 173 83Q171 126 117 137Q65 135 57 95Q53 73 64 56Z" fill="#fff0e6" stroke="#74545b" stroke-width="5"/>
+          <path d="M82 77Q91 66 100 77M133 77Q143 66 151 77" stroke="#74545b" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <path d="M111 88Q117 96 124 88Q118 102 111 88Z" fill="#d98da0"/>
+          <path d="M118 98V103M118 103Q108 114 99 103M118 103Q128 114 137 103" stroke="#74545b" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <path d="M69 91 41 86M68 103 40 106M165 91 193 85M166 103 194 107" stroke="#74545b" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M84 37Q116 52 146 37" fill="none" stroke="#edbac7" stroke-width="6" stroke-linecap="round"/>
+          <path d="M87 132Q61 143 72 157Q89 168 107 148M146 132Q169 143 158 157Q144 168 127 149" fill="#fff0e6" stroke="#74545b" stroke-width="4" stroke-linecap="round"/>
+          <path d="M179 119Q204 116 198 138Q195 154 178 145" fill="none" stroke="#74545b" stroke-width="6" stroke-linecap="round"/>
+          <path d="M88 151Q117 139 145 151L149 169 84 169Z" fill="#f0bdc8" stroke="#74545b" stroke-width="3"/>
+          <path d="M101 151Q117 162 133 151" fill="none" stroke="#74545b" stroke-width="3"/>
+        </svg>
+        <div class="floating-heart heart-one">♡</div><div class="floating-heart heart-two">♡</div>
+        <div class="hero-tag"><span>✦</span> <span data-i18n="youGotThis">you've got this!</span></div>
+      </div>
+    </section>
+
+    <section class="stats-row" aria-label="Daily task summary">
+      <div class="stat-card stat-pink"><div class="stat-symbol">♡</div><div><span data-i18n="tasksLeft">Tasks left</span><strong id="tasks-left">0</strong></div><small>✿</small></div>
+      <div class="stat-card stat-lilac"><div class="stat-symbol">✦</div><div><span data-i18n="completed">Completed</span><strong id="tasks-done">0</strong></div><small>♡</small></div>
+      <div class="stat-card stat-mint"><div class="stat-symbol">☁</div><div><span data-i18n="dailyProgress">Daily progress</span><strong id="progress-percent">0%</strong></div><div class="mini-progress"><span id="progress-bar"></span></div></div>
+    </section>
+
+    <section id="today-view" class="content-grid">
+      <div class="tasks-column">
+        <div class="section-heading">
+          <div><span class="section-kicker" data-i18n="yourDay">YOUR DAY, YOUR PACE</span><h2 data-i18n="todaysTasks">Today's tasks <span>♡</span></h2><p data-i18n="gentleNudge">Little wins count, too.</p></div>
+          <button id="open-add" class="primary-button"><span>＋</span> <span data-i18n="addTask">Add task</span></button>
+        </div>
+        <div class="filter-row">
+          <button class="filter-chip selected" data-filter="all" data-i18n="allTasks">All tasks</button>
+          <button class="filter-chip" data-filter="pending" data-i18n="toDo">To do</button>
+          <button class="filter-chip" data-filter="done" data-i18n="doneFilter">Done</button>
+        </div>
+        <div id="task-list" class="task-list"></div>
+        <div id="empty-state" class="empty-state hidden"><div>🌷</div><h3 data-i18n="allCaughtUp">You're all caught up!</h3><p data-i18n="emptyHint">Add a little task and your cat buddy will cheer you on.</p><button class="primary-button" id="empty-add" data-i18n="addFirstTask">Add your first task</button></div>
+      </div>
+      <aside class="right-column">
+        <section class="add-card">
+          <div class="card-topline"><span class="tiny-sparkle">✧</span><span data-i18n="newMission">A NEW LITTLE MISSION</span></div>
+          <h3 data-i18n="makeItHappen">Make it happen!</h3><p data-i18n="addTaskSub">Give your future self a tiny favour.</p>
+          <form id="task-form" class="task-form">
+            <label for="task-title" data-i18n="taskName">Task name</label>
+            <input id="task-title" maxlength="90" required placeholder="e.g. Review Java notes" data-i18n-placeholder="taskPlaceholder" />
+            <label for="task-category" data-i18n="category">Category</label>
+            <select id="task-category"><option value="study" data-i18n="study">Study time</option><option value="water" data-i18n="water">Drink water</option><option value="exercise" data-i18n="exercise">Exercise</option><option value="laundry" data-i18n="laundry">Laundry</option><option value="other" data-i18n="other">A little something</option></select>
+            <label for="task-time" data-i18n="dueTime">Due time</label>
+            <input id="task-time" type="time" />
+            <button class="primary-button full-button" type="submit"><span>✦</span> <span data-i18n="saveTask">Save this task</span></button>
+          </form>
+          <div class="form-footnote"><span>♡</span> <span data-i18n="kindReminder">Kindness to yourself is productive, too.</span></div>
+        </section>
+        <section class="quote-card"><div class="quote-cat">🐾</div><div><p data-i18n="quote">“Even the tiniest paw steps take you somewhere lovely.”</p><span data-i18n="quoteBy">— your cat buddy</span></div><div class="quote-flower">✿</div></section>
+      </aside>
+    </section>
+
+    <section id="history-view" class="history-view hidden">
+      <div class="section-heading"><div><span class="section-kicker" data-i18n="littleWins">LOOK HOW FAR YOU'VE COME</span><h2 data-i18n="taskHistoryTitle">Task history <span>♡</span></h2><p data-i18n="historySub">Every attempt counts. Every restart counts.</p></div><button class="secondary-button" id="back-today">← <span data-i18n="backToToday">Back to today</span></button></div>
+      <div id="history-list" class="history-list"></div>
+      <div id="history-empty" class="empty-state"><div>📔</div><h3 data-i18n="historyEmpty">Your story starts here.</h3><p data-i18n="historyEmptySub">Completed, skipped and snoozed tasks will show up here.</p></div>
+    </section>
+
+    <footer class="footer"><span>made with <span class="footer-heart">♥</span> and a little cat magic</span><span data-i18n="footerNote">Small steps. Soft paws. Big dreams.</span></footer>
+  </main>
+
+  <aside class="chat-dock" id="chat-dock">
+    <div class="chat-header"><div class="chat-avatar">🐱</div><div class="chat-heading"><strong data-i18n="chatTitle">Chat with your cat</strong><small><span class="online-dot"></span> <span data-i18n="catHere">Your buddy is here</span></small></div><button class="chat-toggle" id="chat-toggle" aria-label="Toggle chat">⌄</button></div>
+    <div id="chat-content" class="chat-content">
+      <div class="chat-intro"><div class="chat-cat-art">😺</div><div class="chat-bubble"><span data-i18n="catGreeting">Mrrp! Ready to make today a little brighter? Tell me what's on your mind. ♡</span><small data-i18n="placeholderNotice">Just a friendly placeholder for now — AI isn't connected yet.</small></div></div>
+      <div class="quick-prompts"><button data-prompt="motivate" data-i18n="motivateMe">Cheer me on ✨</button><button data-prompt="break" data-i18n="takeBreak">I need a break ☁</button><button data-prompt="focus" data-i18n="focusTip">Help me focus ♡</button></div>
+      <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+      <form id="chat-form" class="chat-form"><input id="chat-input" autocomplete="off" maxlength="240" placeholder="Say something to your cat…" data-i18n-placeholder="chatPlaceholder" /><button type="submit" aria-label="Send message">➤</button></form>
+    </div>
+  </aside>
+</div>
+<script src="./app.js"></script>
+</body>
+</html>

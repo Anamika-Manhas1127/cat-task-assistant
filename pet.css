@@ -1,0 +1,39 @@
+* { box-sizing: border-box; }
+:root { color-scheme: light; --ink:#5c4652; --pink:#f3c9d5; --dark:#c87996; --cream:#fffaf8; }
+html, body { margin:0; width:100%; height:100%; overflow:hidden; background:transparent; font-family: "Trebuchet MS", "Segoe UI", sans-serif; color:var(--ink); }
+body { padding:8px; }
+.pet-shell { height:100%; width:100%; overflow:hidden; border:1px solid rgba(222,164,182,.7); border-radius:25px; background:rgba(255,250,248,.97); box-shadow:0 12px 35px rgba(102,66,82,.18); display:flex; flex-direction:column; }
+.topbar { height:43px; flex:0 0 43px; display:flex; justify-content:space-between; align-items:center; padding:0 12px; background:#f8e6eb; border-radius:24px 24px 0 0; -webkit-app-region:drag; }
+.drag-label { font-weight:800; font-size:12px; letter-spacing:.2px; }
+.window-actions { display:flex; gap:5px; -webkit-app-region:no-drag; }
+.window-actions button { border:0; border-radius:8px; background:rgba(255,255,255,.75); color:#9c647a; width:26px; height:26px; font-size:18px; cursor:pointer; }
+.cat-area { flex:1; min-height:0; padding:8px 15px 4px; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; }
+.cat { font-size:100px; line-height:1.15; filter:drop-shadow(0 7px 2px rgba(206,145,166,.15)); animation:bob 2.6s ease-in-out infinite; user-select:none; }
+.cat.thinking { animation:wiggle .45s ease-in-out infinite alternate; }
+.cat.speaking { animation:bob .4s ease-in-out infinite alternate; }
+.cat.greeting { animation:greeting-bounce .7s ease-out 1; }
+.cat.excited { animation:excited-wiggle .62s ease-in-out 1; }
+@keyframes bob { 0%,100% { transform:translateY(0) rotate(-2deg); } 50% { transform:translateY(-7px) rotate(2deg); } }
+@keyframes wiggle { from { transform:rotate(-6deg); } to { transform:rotate(6deg); } }
+@keyframes greeting-bounce { 0% { transform:translateY(0) rotate(0); } 35% { transform:translateY(-13px) rotate(-4deg); } 68% { transform:translateY(1px) rotate(3deg); } 100% { transform:translateY(0) rotate(0); } }
+@keyframes excited-wiggle { 0%,100% { transform:translateY(0) rotate(0); } 20% { transform:translateY(-5px) rotate(-8deg); } 40% { transform:translateY(0) rotate(7deg); } 60% { transform:translateY(-4px) rotate(-5deg); } 80% { transform:translateY(0) rotate(3deg); } }
+@media (prefers-reduced-motion: reduce) { .cat.greeting, .cat.excited { animation-duration:1ms; } }
+.mood { font-size:11px; font-weight:800; color:#c27b95; margin:0 0 8px; }
+.speech { width:100%; max-height:80px; overflow:auto; background:white; border:1px solid #f2e0e6; border-radius:14px; padding:10px 12px; font-size:12px; line-height:1.45; text-align:center; }
+.spark { position:absolute; color:#d795ab; font-size:22px; }
+.spark-one { top:20px; right:30px; } .spark-two { top:43px; left:26px; }
+.controls { padding:8px 12px 11px; }
+.quick-row { display:flex; gap:7px; margin-bottom:8px; }
+button { cursor:pointer; font:inherit; }
+.soft-btn { flex:1; min-width:0; border:1px solid #f0dce3; background:#fff; color:#a96c84; border-radius:10px; padding:8px 3px; font-size:10px; font-weight:700; }
+.reminder-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:0 0 8px; }
+.reminder-actions[hidden] { display:none; }
+.reminder-actions button { min-height:32px; border:1px solid #f0dce3; border-radius:9px; background:#fff; color:#956477; padding:6px 5px; font-size:10px; font-weight:700; }
+.reminder-actions .reminder-done { grid-column:1 / -1; background:#d992aa; border-color:#d992aa; color:#fff; }
+.reminder-actions button:disabled { opacity:.55; cursor:wait; }
+#chatForm { display:flex; gap:6px; }
+#messageInput { min-width:0; flex:1; border:1px solid #ecd8df; background:#fff; border-radius:11px; padding:10px; outline:none; font-size:12px; color:var(--ink); }
+#messageInput:focus { border-color:#d995ad; }
+.send-btn { width:39px; border:0; border-radius:11px; background:#d992aa; color:white; font-size:17px; }
+#status { min-height:13px; margin:7px 2px 0; font-size:9px; color:#9b8590; overflow-wrap:anywhere; }
+.hint { margin:4px 0 0; text-align:center; font-size:9px; color:#b39ca6; }

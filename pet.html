@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mochi — Floating Cat</title>
+  <link rel="stylesheet" href="./pet.css">
+</head>
+<body>
+  <main class="pet-shell">
+    <header class="topbar">
+      <span class="drag-label">✦ Mochi is here</span>
+      <div class="window-actions">
+        <button id="dashboardBtn" title="Open dashboard" aria-label="Open dashboard">⌂</button>
+        <button id="closeBtn" title="Close cat" aria-label="Close cat">×</button>
+      </div>
+    </header>
+
+    <section class="cat-area">
+      <div class="spark spark-one">✦</div><div class="spark spark-two">♡</div>
+      <div id="cat" class="cat" aria-label="Cute cat">🐱</div>
+      <div id="mood" class="mood">Ready to help you ✨</div>
+      <div id="speech" class="speech">Meow! I'm Mochi. Tell me what you're working on!</div>
+    </section>
+
+    <section class="controls">
+      <div class="quick-row">
+        <button id="speakBtn" class="soft-btn">🔊 Say hello</button>
+        <button id="listenBtn" class="soft-btn">🎙️ Listen</button>
+        <button id="muteBtn" class="soft-btn" aria-pressed="false">🔇 Mute</button>
+      </div>
+      <div id="reminderActions" class="reminder-actions" hidden>
+        <button id="doneReminderBtn" class="reminder-done">Done</button>
+        <button id="snoozeReminderBtn">Snooze 10 minutes</button>
+        <button id="laterReminderBtn">Remind me later</button>
+      </div>
+      <form id="chatForm">
+        <input id="messageInput" autocomplete="off" maxlength="3000"
+          placeholder="Ask Mochi anything…" aria-label="Message Mochi">
+        <button class="send-btn" type="submit" aria-label="Send message">➤</button>
+      </form>
+      <p id="status" role="status">AI status: waiting for your message</p>
+      <p class="hint">Drag the top bar to move me • Reminders while the app is running</p>
+    </section>
+  </main>
+  <script src="./pet.js"></script>
+</body>
+</html>
