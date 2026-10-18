@@ -1,7 +1,6 @@
 const path = require("path");
-const dotenvResult = require("dotenv").config({ path: path.join(__dirname, ".env") });
-const { app, BrowserWindow, ipcMain, Notification, session, shell } = require("electron");
 const fs = require("fs");
+const { app, BrowserWindow, ipcMain, Notification, session, shell } = require("electron");
 const { randomUUID } = require("crypto");
 const { execFile } = require("child_process");
 const { dueReminders, reminderMessage, sanitizeTasks, validReminderAction } = require("./reminder-core");
@@ -21,6 +20,69 @@ const {
 } = require("./chat-core");
 const { transcribeWithSarvam } = require("./sarvam-core");
 const { synthesizeWithFishAudio, streamFishAudio } = require("./fish-speech-core");
+
+function getCandidateEnvPaths() {
+  const candidates = [];
+  try {
+    if (app && typeof app.getPath === "function") {
+      candidates.push(path.join(app.getPath("userData"), ".env"));
+    }
+  } catch (_) {}
+  try {
+    if (process.execPath) {
+      candidates.push(path.join(path.dirname(process.execPath), ".env"));
+    }
+  } catch (_) {}
+  candidates.push(path.join(__dirname, ".env"));
+  candidates.push(path.join(process.cwd(), ".env"));
+  return [...new Set(candidates)];
+}
+
+let activeEnvFilePath = null;
+
+function loadFreshEnv() {
+  const candidatePaths = getCandidateEnvPaths();
+  for (const envPath of candidatePaths) {
+    if (fs.existsSync(envPath)) {
+      try {
+        const freshEnv = require("dotenv").parse(fs.readFileSync(envPath));
+        if (freshEnv.GEMMA_API_KEY) process.env.GEMMA_API_KEY = freshEnv.GEMMA_API_KEY;
+        if (freshEnv.GEMMA_MODEL_ID) process.env.GEMMA_MODEL_ID = freshEnv.GEMMA_MODEL_ID;
+        if (freshEnv.SARVAM_API_KEY) process.env.SARVAM_API_KEY = freshEnv.SARVAM_API_KEY;
+        if (freshEnv.FISH_AUDIO_API_KEY) process.env.FISH_AUDIO_API_KEY = freshEnv.FISH_AUDIO_API_KEY;
+        if (freshEnv.FISH_AUDIO_VOICE_ID) process.env.FISH_AUDIO_VOICE_ID = freshEnv.FISH_AUDIO_VOICE_ID;
+        if (freshEnv.FISH_AUDIO_MODEL) process.env.FISH_AUDIO_MODEL = freshEnv.FISH_AUDIO_MODEL;
+        activeEnvFilePath = envPath;
+        return envPath;
+      } catch (_) {}
+    }
+  }
+  return null;
+}
+
+activeEnvFilePath = loadFreshEnv();
+const dotenvResult = activeEnvFilePath ? { parsed: true } : { error: new Error("No .env file found") };
+
+function getAppIcon() {
+  const iconIco = path.join(__dirname, "build", "icon.ico");
+  if (fs.existsSync(iconIco)) return iconIco;
+  const iconPng = path.join(__dirname, "build", "icon.png");
+  if (fs.existsSync(iconPng)) return iconPng;
+  return undefined;
+}
+
+function getWindowsSpeechScriptPath() {
+  const defaultPath = path.join(__dirname, "windows-speech.ps1");
+  if (app && app.isPackaged) {
+    const unpackedPath = defaultPath.replace("app.asar", "app.asar.unpacked");
+    if (fs.existsSync(unpackedPath)) return unpackedPath;
+    const resourcePath = path.join(process.resourcesPath, "windows-speech.ps1");
+    if (fs.existsSync(resourcePath)) return resourcePath;
+    const unpackedResource = path.join(process.resourcesPath, "app.asar.unpacked", "windows-speech.ps1");
+    if (fs.existsSync(unpackedResource)) return unpackedResource;
+  }
+  return defaultPath;
+}
 
 let dashboardWindow;
 let catWindow;
@@ -48,21 +110,6 @@ else {
       dashboardWindow.focus();
     }
   });
-}
-
-function loadFreshEnv() {
-  const envPath = path.join(__dirname, ".env");
-  if (fs.existsSync(envPath)) {
-    try {
-      const freshEnv = require("dotenv").parse(fs.readFileSync(envPath));
-      if (freshEnv.GEMMA_API_KEY) process.env.GEMMA_API_KEY = freshEnv.GEMMA_API_KEY;
-      if (freshEnv.GEMMA_MODEL_ID) process.env.GEMMA_MODEL_ID = freshEnv.GEMMA_MODEL_ID;
-      if (freshEnv.SARVAM_API_KEY) process.env.SARVAM_API_KEY = freshEnv.SARVAM_API_KEY;
-      if (freshEnv.FISH_AUDIO_API_KEY) process.env.FISH_AUDIO_API_KEY = freshEnv.FISH_AUDIO_API_KEY;
-      if (freshEnv.FISH_AUDIO_VOICE_ID) process.env.FISH_AUDIO_VOICE_ID = freshEnv.FISH_AUDIO_VOICE_ID;
-      if (freshEnv.FISH_AUDIO_MODEL) process.env.FISH_AUDIO_MODEL = freshEnv.FISH_AUDIO_MODEL;
-    } catch (_) {}
-  }
 }
 
 function isWindowSender(event, window) {
@@ -173,6 +220,7 @@ function createDashboard() {
     minHeight: 560,
     title: "Cat Task Assistant",
     backgroundColor: "#fffaf8",
+    icon: getAppIcon(),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -201,6 +249,7 @@ function createFloatingCat() {
     skipTaskbar: true,
     resizable: true,
     hasShadow: false,
+    icon: getAppIcon(),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -223,6 +272,38 @@ function createFloatingCat() {
 
 app.whenReady().then(() => {
   if (!hasSingleInstanceLock) return;
+  const userDataDir = app.getPath("userData");
+  try {
+    if (!fs.existsSync(userDataDir)) {
+      fs.mkdirSync(userDataDir, { recursive: true });
+    }
+    const envExamplePath = path.join(userDataDir, ".env.example");
+    if (!fs.existsSync(envExamplePath) && !fs.existsSync(path.join(userDataDir, ".env"))) {
+      const template = [
+        "# Cat Task Assistant - API Configuration",
+        "# To enable optional AI features, copy this file to .env in this folder and add your API keys.",
+        `# Folder: ${userDataDir}`,
+        "",
+        "# Google AI Studio API key for Gemma 4 chat",
+        "GEMMA_API_KEY=PASTE_YOUR_API_KEY_HERE",
+        "# GEMMA_MODEL_ID=gemma-4-26b-a4b-it",
+        "",
+        "# Sarvam AI API subscription key for Speech-to-Text",
+        "SARVAM_API_KEY=PASTE_YOUR_SARVAM_API_KEY_HERE",
+        "",
+        "# Fish Audio API for cartoon cat text-to-speech",
+        "FISH_AUDIO_API_KEY=PASTE_YOUR_FISH_AUDIO_API_KEY_HERE",
+        "# FISH_AUDIO_VOICE_ID=",
+        "# FISH_AUDIO_MODEL=s2.1-pro-free",
+        ""
+      ].join("\r\n");
+      fs.writeFileSync(envExamplePath, template, "utf8");
+    }
+  } catch (err) {
+    console.warn("[Config] Could not write user .env.example:", err.message);
+  }
+  loadFreshEnv();
+  console.info(`[Config] UserData: ${userDataDir}; Active .env: ${activeEnvFilePath || "none (using process.env)"}`);
   if (session && session.defaultSession) {
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
       if (permission === "media") {
@@ -285,7 +366,7 @@ function speechRecognitionError(code) {
 function recognizeWindowsSpeech(cultureName) {
   if (speechProcess) return Promise.resolve({ ok: false, error: "Mochi is already listening." });
   const powershellPath = path.join(process.env.WINDIR || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-  const scriptPath = path.join(__dirname, "windows-speech.ps1");
+  const scriptPath = getWindowsSpeechScriptPath();
   const args = ["-NoLogo", "-NoProfile", "-NonInteractive", "-STA", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-CultureName", cultureName];
   if (process.env.SPEECH_MIN_CONFIDENCE && !Number.isNaN(Number(process.env.SPEECH_MIN_CONFIDENCE))) {
     args.push("-MinConfidence", process.env.SPEECH_MIN_CONFIDENCE);
@@ -348,15 +429,7 @@ ipcMain.handle("cat:ask-gemma", async (event, rawMessage) => {
     catch (error) { console.error("Could not save the requested chat reminder:", error.message); }
   }
 
-  const envPath = path.join(__dirname, ".env");
-  if (fs.existsSync(envPath)) {
-    try {
-      const freshEnv = require("dotenv").parse(fs.readFileSync(envPath));
-      if (freshEnv.GEMMA_API_KEY) process.env.GEMMA_API_KEY = freshEnv.GEMMA_API_KEY;
-      if (freshEnv.GEMMA_MODEL_ID) process.env.GEMMA_MODEL_ID = freshEnv.GEMMA_MODEL_ID;
-      if (freshEnv.SARVAM_API_KEY) process.env.SARVAM_API_KEY = freshEnv.SARVAM_API_KEY;
-    } catch (_) {}
-  }
+  loadFreshEnv();
 
   const rawKey = process.env.GEMMA_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   const apiKey = (rawKey && !rawKey.includes("PASTE_YOUR_API_KEY_HERE")) ? rawKey.trim() : "";

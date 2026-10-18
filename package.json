@@ -3,15 +3,78 @@
   "version": "1.0.0",
   "description": "A floating talking cat productivity companion powered by Gemma 4",
   "main": "main.js",
+  "author": "Mochi Team",
   "scripts": {
     "start": "electron .",
     "test": "node --test",
-    "diagnose:gemma": "node diagnose-gemma.js"
+    "diagnose:gemma": "node diagnose-gemma.js",
+    "build": "electron-builder --dir",
+    "dist": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.cat-task-assistant.desktop",
+    "productName": "Mochi Cat Task Assistant",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "style.css",
+      "app.js",
+      "pet.html",
+      "pet.css",
+      "pet.js",
+      "chat-core.js",
+      "chat-reminder-store.js",
+      "reminder-core.js",
+      "reminder-delivery.js",
+      "sarvam-core.js",
+      "fish-speech-core.js",
+      "speech-emotion.js",
+      "windows-speech.ps1",
+      "build/icon.ico",
+      "build/icon.png",
+      "package.json",
+      "!test/**",
+      "!diagnose-gemma.js",
+      "!README*.md",
+      "!.env",
+      "!.env.*",
+      "!.git*"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "windows-speech.ps1"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mochi Cat Task Assistant",
+      "uninstallDisplayName": "Mochi Cat Task Assistant",
+      "runAfterFinish": true
+    }
   },
   "dependencies": {
     "dotenv": "^16.4.7"
   },
   "devDependencies": {
-    "electron": "^35.0.0"
+    "electron": "^35.0.0",
+    "electron-builder": "^26.15.3"
   }
 }
