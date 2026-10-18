@@ -26,6 +26,8 @@ body { padding:8px; }
 .quick-row { display:flex; gap:7px; margin-bottom:8px; }
 button { cursor:pointer; font:inherit; }
 .soft-btn { flex:1; min-width:0; border:1px solid #f0dce3; background:#fff; color:#a96c84; border-radius:10px; padding:8px 3px; font-size:10px; font-weight:700; }
+.soft-btn.recording { background:#fce7ec; border-color:#e28fa8; color:#be4d72; animation:pulse-record 1.2s ease-in-out infinite; }
+@keyframes pulse-record { 0%,100% { transform:scale(1); } 50% { transform:scale(1.03); } }
 .reminder-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:0 0 8px; }
 .reminder-actions[hidden] { display:none; }
 .reminder-actions button { min-height:32px; border:1px solid #f0dce3; border-radius:9px; background:#fff; color:#956477; padding:6px 5px; font-size:10px; font-weight:700; }

@@ -44,4 +44,33 @@ test("preload exposes only named invokes and strips IPC events from callbacks", 
   assert.equal(received, "ja");
   unsubscribeLanguage();
   assert.deepEqual(calls[3], ["cat:renderer-ready"]);
+
+  exposed.catDesktop.transcribeAudio({ audioBuffer: "abc" });
+  assert.equal(JSON.stringify(calls[4]), JSON.stringify(["cat:transcribe-audio", { audioBuffer: "abc" }]));
+
+  exposed.catDesktop.synthesizeSpeech({ text: "Hello" });
+  assert.equal(JSON.stringify(calls[5]), JSON.stringify(["cat:synthesize-speech", { text: "Hello" }]));
+
+  exposed.catDesktop.getVoiceConfig();
+  assert.equal(JSON.stringify(calls[6]), JSON.stringify(["cat:get-voice-config"]));
+
+  let voiceConfigReceived;
+  const unsubscribeVoice = exposed.catDesktop.onVoiceConfig(config => { voiceConfigReceived = config; });
+  handlers.get("cat:voice-config")({ sender: "not forwarded" }, { provider: "fish-audio", enabled: true });
+  assert.deepEqual(voiceConfigReceived, { provider: "fish-audio", enabled: true });
+  unsubscribeVoice();
+  assert.equal(handlers.has("cat:voice-config"), false);
+
+  exposed.catDesktop.synthesizeSpeechStream({ text: "Stream me", streamId: 1 });
+  assert.equal(JSON.stringify(calls[7]), JSON.stringify(["cat:synthesize-speech-stream", { text: "Stream me", streamId: 1 }]));
+
+  exposed.catDesktop.cancelSpeechStream(1);
+  assert.equal(JSON.stringify(calls[8]), JSON.stringify(["cat:cancel-speech-stream", 1]));
+
+  let chunkReceived;
+  const unsubscribeChunk = exposed.catDesktop.onSpeechChunk(chunk => { chunkReceived = chunk; });
+  handlers.get("cat:speech-chunk")({ sender: "not forwarded" }, { streamId: 1, isFirst: true });
+  assert.deepEqual(chunkReceived, { streamId: 1, isFirst: true });
+  unsubscribeChunk();
+  assert.equal(handlers.has("cat:speech-chunk"), false);
 });

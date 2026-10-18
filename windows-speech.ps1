@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet("en-IN", "en-US", "hi-IN", "kn-IN", "ja-JP")]
-    [string]$CultureName
+    [string]$CultureName,
+    [double]$MinConfidence = 0.35
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,12 +47,22 @@ try {
     }
 
     $confidence = [double]$result.Confidence
+    if ($confidence -lt $MinConfidence) {
+        Write-Result @{
+            ok = $false
+            code = "LOW_CONFIDENCE"
+            confidence = $confidence
+            cultureName = $actualCulture
+        }
+        exit 0
+    }
+
     Write-Result @{
         ok = $true
         code = "OK"
         text = $result.Text.Trim()
         confidence = $confidence
-        lowConfidence = ($confidence -lt 0.45)
+        lowConfidence = ($confidence -lt 0.50)
         cultureName = $actualCulture
     }
 } catch [System.UnauthorizedAccessException] {

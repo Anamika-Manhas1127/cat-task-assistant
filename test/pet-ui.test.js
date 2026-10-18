@@ -38,18 +38,48 @@ test("Say hello and task reminders speak the same text, and actions reach IPC", 
   let reminderListener;
   let languageListener;
   class Utterance { constructor(text) { this.text = text; } }
+  let speechCanceled = 0;
   const speechSynthesis = {
-    cancel() {}, getVoices: () => [{ lang: "ja-JP" }],
+    cancel() { speechCanceled += 1; }, getVoices: () => [{ lang: "ja-JP" }],
     speak(utterance) { utterances.push(utterance); }
   };
+  class FakeAudioTrack { constructor() { this.stopped = false; } stop() { this.stopped = true; } }
+  let currentTrack;
+  const fakeStream = { getTracks: () => [currentTrack = new FakeAudioTrack()] };
+  let recorderInstance = null;
+  class FakeMediaRecorder {
+    static isTypeSupported() { return true; }
+    constructor(stream, options = {}) {
+      this.stream = stream;
+      this.mimeType = options.mimeType || "audio/webm;codecs=opus";
+      this.state = "inactive";
+      recorderInstance = this;
+    }
+    start() { this.state = "recording"; }
+    stop() {
+      this.state = "inactive";
+      if (typeof this.ondataavailable === "function") {
+        this.ondataavailable({ data: new Blob([Buffer.alloc(200)], { type: this.mimeType }) });
+      }
+      if (typeof this.onstop === "function") {
+        this.onstop();
+      }
+    }
+  }
+
+  let transcribePayload = null;
+  let transcribeResult = { ok: true, text: "Help me plan my demo" };
+
   const source = fs.readFileSync(path.join(__dirname, "..", "pet.js"), "utf8");
   vm.runInNewContext(source, {
     document: { getElementById: id => elements[id] },
     window: {
       speechSynthesis,
+      addEventListener() {},
       catDesktop: {
         askGemma: async () => gemmaResponse || ({ ok: false, error: "AI not configured" }),
-        recognizeSpeech: async selectedLanguage => { recognizedLanguage = selectedLanguage; return speechResult; },
+        recognizeSpeech: async () => speechResult,
+        transcribeAudio: async payload => { transcribePayload = payload; return transcribeResult; },
         openDashboard() {}, closeFloating() {},
         reminderAction: async (...args) => { actions.push(args); return { ok: true }; },
         onReminder: callback => { reminderListener = callback; },
@@ -57,23 +87,52 @@ test("Say hello and task reminders speak the same text, and actions reach IPC", 
         getLanguage: async () => "ja"
       }
     },
-    SpeechSynthesisUtterance: Utterance
+    navigator: {
+      mediaDevices: {
+        getUserMedia: async () => fakeStream
+      }
+    },
+    MediaRecorder: FakeMediaRecorder,
+    Blob: globalThis.Blob,
+    SpeechSynthesisUtterance: Utterance,
+    setTimeout,
+    clearTimeout
   });
   await Promise.resolve();
 
+  // Click 1: Start recording
   await elements.listenBtn.listeners.click();
-  assert.equal(recognizedLanguage, "ja");
-  assert.equal(elements.messageInput.value, "Help me plan my demo");
-  assert.equal(elements.status.textContent, "I heard you! Review your message and press Send.");
+  assert.equal(elements.listenBtn.textContent, "⏹️ Stop");
+  assert.equal(elements.listenBtn.classList.contains("recording"), true);
+  assert.match(elements.status.textContent, /Click Stop when finished/);
+  assert.ok(speechCanceled > 0, "speechSynthesis must be canceled when Listen is clicked");
 
-  languageListener("en");
-  speechResult = { ok: true, text: "I want to test a sentence", confidence: 0.32, lowConfidence: true, cultureName: "en-US" };
+  // Click 2: Stop recording and transcribe
   await elements.listenBtn.listeners.click();
-  assert.equal(recognizedLanguage, "en");
-  assert.equal(elements.messageInput.value, "I want to test a sentence");
-  assert.match(elements.status.textContent, /sounded uncertain/);
-  assert.match(elements.status.textContent, /en-US.*en-IN is not installed/);
-  languageListener("ja");
+  for (let i = 0; i < 20 && elements.listenBtn.textContent !== "🎙️ Listen"; i++) {
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+  assert.equal(transcribePayload.language, "ja");
+  assert.equal(elements.messageInput.value, "Help me plan my demo");
+  assert.match(elements.status.textContent, /Transcribed with Sarvam AI/);
+  assert.equal(elements.listenBtn.textContent, "🎙️ Listen");
+  assert.equal(currentTrack.stopped, true, "audio tracks must be stopped after recording");
+
+  // Error case: Transcription failure does not overwrite messageInput
+  elements.messageInput.value = "Preserved draft";
+  transcribeResult = {
+    ok: false,
+    error: "Sarvam AI rejected the API key (HTTP 401). Check your SARVAM_API_KEY in .env."
+  };
+  await elements.listenBtn.listeners.click(); // start
+  assert.equal(elements.listenBtn.textContent, "⏹️ Stop");
+  await elements.listenBtn.listeners.click(); // stop
+  for (let i = 0; i < 20 && elements.listenBtn.textContent !== "🎙️ Listen"; i++) {
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+  assert.equal(elements.messageInput.value, "Preserved draft", "draft must not be overwritten by failed transcription");
+  assert.match(elements.status.textContent, /HTTP 401/);
+  assert.equal(elements.listenBtn.textContent, "🎙️ Listen");
 
   elements.speakBtn.listeners.click();
   assert.equal(elements.speech.textContent, utterances.at(-1).text);

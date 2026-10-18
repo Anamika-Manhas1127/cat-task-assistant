@@ -33,5 +33,22 @@ contextBridge.exposeInMainWorld("catDesktop", {
     return () => ipcRenderer.removeListener("dashboard:chat-reminder-history", listener);
   },
   getLanguage: () => ipcRenderer.invoke("cat:get-language"),
-  recognizeSpeech: (language) => ipcRenderer.invoke("cat:speech-recognition", language)
+  recognizeSpeech: (language) => ipcRenderer.invoke("cat:speech-recognition", language),
+  transcribeAudio: (audioData) => ipcRenderer.invoke("cat:transcribe-audio", audioData),
+  synthesizeSpeech: (payload) => ipcRenderer.invoke("cat:synthesize-speech", payload),
+  synthesizeSpeechStream: (payload) => ipcRenderer.invoke("cat:synthesize-speech-stream", payload),
+  cancelSpeechStream: (streamId) => ipcRenderer.invoke("cat:cancel-speech-stream", streamId),
+  onSpeechChunk: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = (_event, data) => callback(data);
+    ipcRenderer.on("cat:speech-chunk", listener);
+    return () => ipcRenderer.removeListener("cat:speech-chunk", listener);
+  },
+  getVoiceConfig: () => ipcRenderer.invoke("cat:get-voice-config"),
+  onVoiceConfig: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = (_event, config) => callback(config);
+    ipcRenderer.on("cat:voice-config", listener);
+    return () => ipcRenderer.removeListener("cat:voice-config", listener);
+  }
 });

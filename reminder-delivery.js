@@ -1,11 +1,11 @@
 "use strict";
 
 class ReminderDelivery {
-  constructor({ getWindow, ensureWindow, notify, isRendererReady = () => true }) {
+  constructor({ getWindow, ensureWindow, notify, isRendererReady }) {
     this.getWindow = getWindow;
     this.ensureWindow = ensureWindow;
     this.notify = notify;
-    this.isRendererReady = isRendererReady;
+    this.isRendererReady = typeof isRendererReady === "function" ? isRendererReady : null;
     this.pending = [];
     this.delivered = new Set();
   }
@@ -34,7 +34,14 @@ class ReminderDelivery {
   }
 
   isReady(window) {
-    return Boolean(window && !window.isDestroyed() && !window.webContents.isLoading() && this.isRendererReady());
+    if (!window || (typeof window.isDestroyed === "function" && window.isDestroyed())) return false;
+    if (this.isRendererReady) {
+      return Boolean(this.isRendererReady());
+    }
+    if (typeof window.webContents?.isLoading === "function" && window.webContents.isLoading()) {
+      return false;
+    }
+    return true;
   }
 
   present(window, reminder) {

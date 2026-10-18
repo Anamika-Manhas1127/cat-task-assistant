@@ -93,6 +93,7 @@ test("routes one reminder through preload into Mochi UI and speech while minimiz
     invoke: async channel => {
       if (channel === "cat:get-language") return "en";
       if (channel === "cat:renderer-ready") rendererReady = true;
+      if (channel === "cat:get-voice-config") return { provider: "fish-audio", enabled: false };
       return true;
     },
     on(channel, callback) { channels.set(channel, callback); },
@@ -182,3 +183,88 @@ test("routes one reminder through preload into Mochi UI and speech while minimiz
   assert.equal(delivery.deliver(reminder, "water-integration-1:due"), false);
   assert.equal(utterances.length, 1);
 });
+
+test("Case B regression: recreates closed mini-tab and delivers reminder once the new renderer is ready", () => {
+  let catWindow = null;
+  let rendererReady = false;
+  let recreatedCount = 0;
+  const notifications = [];
+
+  const delivery = new ReminderDelivery({
+    getWindow: () => catWindow,
+    ensureWindow: () => {
+      recreatedCount += 1;
+      catWindow = fakeWindow({ loading: true, minimized: false });
+    },
+    notify: reminder => notifications.push(reminder.message),
+    isRendererReady: () => rendererReady
+  });
+
+  const reminder = {
+    id: "water-case-b",
+    taskId: "water-case-b",
+    kind: "chat",
+    title: "drink water",
+    message: "Meow! Time to drink water. Let's do this together!"
+  };
+
+  // Mini-tab is closed initially (catWindow is null)
+  assert.equal(catWindow, null);
+  assert.equal(delivery.deliver(reminder, "water-case-b:once"), true);
+  assert.equal(recreatedCount, 1);
+  assert.ok(catWindow);
+  // Reminder is queued, not yet sent because renderer is not ready
+  assert.equal(delivery.pending.length, 1);
+  assert.equal(catWindow.calls.filter(call => Array.isArray(call) && call[0] === "send").length, 0);
+
+  // Now renderer signals ready (even if webContents still reports loading: true)
+  rendererReady = true;
+  assert.equal(delivery.flush(catWindow), 1);
+  assert.equal(delivery.pending.length, 0);
+
+  // Verify it was sent exactly once
+  const sendCalls = catWindow.calls.filter(call => Array.isArray(call) && call[0] === "send");
+  assert.equal(sendCalls.length, 1);
+  assert.deepEqual(sendCalls[0], ["send", "reminder:show", reminder]);
+
+  // Redundant flush calls should be no-ops
+  assert.equal(delivery.flush(catWindow), 0);
+  assert.equal(catWindow.calls.filter(call => Array.isArray(call) && call[0] === "send").length, 1);
+});
+
+test("Case B regression: multiple queued reminders while mini-tab is closed are delivered in order without loss", () => {
+  let catWindow = null;
+  let rendererReady = false;
+  const notifications = [];
+
+  const delivery = new ReminderDelivery({
+    getWindow: () => catWindow,
+    ensureWindow: () => {
+      if (!catWindow) catWindow = fakeWindow({ loading: true });
+    },
+    notify: reminder => notifications.push(reminder.id),
+    isRendererReady: () => rendererReady
+  });
+
+  const r1 = { id: "rem-1", taskId: "rem-1", title: "Task 1", message: "Do task 1" };
+  const r2 = { id: "rem-2", taskId: "rem-2", title: "Task 2", message: "Do task 2" };
+  const r3 = { id: "rem-3", taskId: "rem-3", title: "Task 3", message: "Do task 3" };
+
+  delivery.deliver(r1, "rem-1:due");
+  delivery.deliver(r2, "rem-2:due");
+  delivery.deliver(r3, "rem-3:due");
+
+  assert.equal(delivery.pending.length, 3);
+  assert.deepEqual(notifications, ["rem-1", "rem-2", "rem-3"]);
+
+  // Window becomes ready
+  rendererReady = true;
+  assert.equal(delivery.flush(catWindow), 3);
+  assert.equal(delivery.pending.length, 0);
+
+  const sentReminders = catWindow.calls
+    .filter(call => Array.isArray(call) && call[0] === "send" && call[1] === "reminder:show")
+    .map(call => call[2].id);
+  assert.deepEqual(sentReminders, ["rem-1", "rem-2", "rem-3"]);
+});
+

@@ -1,6 +1,6 @@
 const path = require("path");
 const dotenvResult = require("dotenv").config({ path: path.join(__dirname, ".env") });
-const { app, BrowserWindow, ipcMain, Notification, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, Notification, session, shell } = require("electron");
 const fs = require("fs");
 const { randomUUID } = require("crypto");
 const { execFile } = require("child_process");
@@ -19,6 +19,8 @@ const {
   replyWithReminderState,
   reminderOnlyReply
 } = require("./chat-core");
+const { transcribeWithSarvam } = require("./sarvam-core");
+const { synthesizeWithFishAudio, streamFishAudio } = require("./fish-speech-core");
 
 let dashboardWindow;
 let catWindow;
@@ -38,6 +40,7 @@ const speechCultures = { en: "en-IN", hi: "hi-IN", kn: "kn-IN", ja: "ja-JP" };
 if (!hasSingleInstanceLock) app.quit();
 else {
   app.setAppUserModelId("com.cat-task-assistant.desktop");
+  app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
   app.on("second-instance", () => {
     if (dashboardWindow && !dashboardWindow.isDestroyed()) {
       if (dashboardWindow.isMinimized()) dashboardWindow.restore();
@@ -45,6 +48,21 @@ else {
       dashboardWindow.focus();
     }
   });
+}
+
+function loadFreshEnv() {
+  const envPath = path.join(__dirname, ".env");
+  if (fs.existsSync(envPath)) {
+    try {
+      const freshEnv = require("dotenv").parse(fs.readFileSync(envPath));
+      if (freshEnv.GEMMA_API_KEY) process.env.GEMMA_API_KEY = freshEnv.GEMMA_API_KEY;
+      if (freshEnv.GEMMA_MODEL_ID) process.env.GEMMA_MODEL_ID = freshEnv.GEMMA_MODEL_ID;
+      if (freshEnv.SARVAM_API_KEY) process.env.SARVAM_API_KEY = freshEnv.SARVAM_API_KEY;
+      if (freshEnv.FISH_AUDIO_API_KEY) process.env.FISH_AUDIO_API_KEY = freshEnv.FISH_AUDIO_API_KEY;
+      if (freshEnv.FISH_AUDIO_VOICE_ID) process.env.FISH_AUDIO_VOICE_ID = freshEnv.FISH_AUDIO_VOICE_ID;
+      if (freshEnv.FISH_AUDIO_MODEL) process.env.FISH_AUDIO_MODEL = freshEnv.FISH_AUDIO_MODEL;
+    } catch (_) {}
+  }
 }
 
 function isWindowSender(event, window) {
@@ -191,7 +209,12 @@ function createFloatingCat() {
   });
   catWindow.loadFile(path.join(__dirname, "pet.html"));
   catWindow.webContents.on("did-finish-load", () => {
+    loadFreshEnv();
+    const rawFishKey = process.env.FISH_AUDIO_API_KEY || "";
+    const hasFishKey = Boolean(rawFishKey && !rawFishKey.includes("PASTE_YOUR_FISH_AUDIO_API_KEY_HERE"));
+    console.info(`[Voice] Floating cat window loaded. Fish Audio configured: ${hasFishKey}`);
     catWindow.webContents.send("cat:language", reminderLanguage);
+    catWindow.webContents.send("cat:voice-config", { provider: "fish-audio", enabled: hasFishKey });
     flushPendingMessages();
   });
   catWindow.setAlwaysOnTop(true, "floating");
@@ -200,6 +223,19 @@ function createFloatingCat() {
 
 app.whenReady().then(() => {
   if (!hasSingleInstanceLock) return;
+  if (session && session.defaultSession) {
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+      if (permission === "media") {
+        if (
+          (catWindow && !catWindow.isDestroyed() && webContents === catWindow.webContents) ||
+          (dashboardWindow && !dashboardWindow.isDestroyed() && webContents === dashboardWindow.webContents)
+        ) {
+          return callback(true);
+        }
+      }
+      callback(false);
+    });
+  }
   loadReminderLedger();
   chatReminderStore = new ChatReminderStore(path.join(app.getPath("userData"), "chat-reminders.json"));
   chatReminderStore.load();
@@ -237,6 +273,7 @@ app.on("before-quit", () => {
 function speechRecognitionError(code) {
   const messages = {
     NO_SPEECH: "I didn't catch anything. Try speaking a little closer to the microphone.",
+    LOW_CONFIDENCE: "I couldn't hear that clearly. Please try speaking closer to the microphone or type your message.",
     RECOGNIZER_NOT_INSTALLED: "Windows speech recognition for the selected language is not installed. Add that Windows speech language and try again.",
     MICROPHONE_PERMISSION_DENIED: "Windows denied microphone access. Allow microphone access for desktop apps in Windows Settings.",
     MICROPHONE_UNAVAILABLE: "Windows could not open a microphone. Check that a microphone is connected and enabled.",
@@ -250,6 +287,9 @@ function recognizeWindowsSpeech(cultureName) {
   const powershellPath = path.join(process.env.WINDIR || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
   const scriptPath = path.join(__dirname, "windows-speech.ps1");
   const args = ["-NoLogo", "-NoProfile", "-NonInteractive", "-STA", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-CultureName", cultureName];
+  if (process.env.SPEECH_MIN_CONFIDENCE && !Number.isNaN(Number(process.env.SPEECH_MIN_CONFIDENCE))) {
+    args.push("-MinConfidence", process.env.SPEECH_MIN_CONFIDENCE);
+  }
 
   return new Promise(resolve => {
     const child = execFile(powershellPath, args, {
@@ -279,7 +319,12 @@ function recognizeWindowsSpeech(cultureName) {
         return;
       }
       if (result && typeof result.code === "string") {
-        resolve({ ok: false, error: speechRecognitionError(result.code) });
+        resolve({
+          ok: false,
+          code: result.code,
+          error: speechRecognitionError(result.code),
+          confidence: Number.isFinite(result.confidence) ? result.confidence : null
+        });
         return;
       }
       const exitKind = error?.code || error?.name || "unknown";
@@ -303,7 +348,18 @@ ipcMain.handle("cat:ask-gemma", async (event, rawMessage) => {
     catch (error) { console.error("Could not save the requested chat reminder:", error.message); }
   }
 
-  const apiKey = process.env.GEMMA_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const envPath = path.join(__dirname, ".env");
+  if (fs.existsSync(envPath)) {
+    try {
+      const freshEnv = require("dotenv").parse(fs.readFileSync(envPath));
+      if (freshEnv.GEMMA_API_KEY) process.env.GEMMA_API_KEY = freshEnv.GEMMA_API_KEY;
+      if (freshEnv.GEMMA_MODEL_ID) process.env.GEMMA_MODEL_ID = freshEnv.GEMMA_MODEL_ID;
+      if (freshEnv.SARVAM_API_KEY) process.env.SARVAM_API_KEY = freshEnv.SARVAM_API_KEY;
+    } catch (_) {}
+  }
+
+  const rawKey = process.env.GEMMA_API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const apiKey = (rawKey && !rawKey.includes("PASTE_YOUR_API_KEY_HERE")) ? rawKey.trim() : "";
   const modelId = process.env.GEMMA_MODEL_ID || "gemma-4-26b-a4b-it";
   console.info(`[Gemma] .env ${dotenvResult.error ? "not loaded" : "loaded"}; API key configured: ${Boolean(apiKey)}; model: ${modelId}`);
   if (!apiKey) {
@@ -312,7 +368,7 @@ ipcMain.handle("cat:ask-gemma", async (event, rawMessage) => {
     }
     return {
       ok: false,
-      error: `AI is not configured. Copy .env.example to .env, add a restricted Google AI Studio key as GEMMA_API_KEY, then restart the app.${reminderRequest ? " The requested reminder wasn't set." : ""}`
+      error: `AI is not configured. Add your Google AI Studio API key as GEMMA_API_KEY in the .env file.${reminderRequest ? " The requested reminder wasn't set." : ""}`
     };
   }
 
@@ -389,6 +445,14 @@ ipcMain.handle("dashboard:sync-reminders", (event, payload) => {
 
 ipcMain.handle("cat:get-language", event => isWindowSender(event, catWindow) ? reminderLanguage : "en");
 
+ipcMain.handle("cat:get-voice-config", event => {
+  if (!isWindowSender(event, catWindow)) return { enabled: false };
+  loadFreshEnv();
+  const rawFishKey = process.env.FISH_AUDIO_API_KEY || "";
+  const hasFishKey = Boolean(rawFishKey && !rawFishKey.includes("PASTE_YOUR_FISH_AUDIO_API_KEY_HERE"));
+  return { provider: "fish-audio", enabled: hasFishKey };
+});
+
 ipcMain.handle("cat:speech-recognition", (event, language) => {
   if (!isWindowSender(event, catWindow)) return { ok: false, error: "Speech input is not available from this window." };
   if (typeof language !== "string" || !Object.prototype.hasOwnProperty.call(speechCultures, language)) {
@@ -397,9 +461,168 @@ ipcMain.handle("cat:speech-recognition", (event, language) => {
   return recognizeWindowsSpeech(speechCultures[language]);
 });
 
+ipcMain.handle("cat:transcribe-audio", async (event, payload) => {
+  if (!isWindowSender(event, catWindow)) return { ok: false, error: "Audio transcription is not available from this window." };
+  if (!payload || typeof payload !== "object") return { ok: false, error: "Invalid audio transcription request." };
+  loadFreshEnv();
+  const rawSarvamKey = process.env.SARVAM_API_KEY || "";
+  const sarvamApiKey = (rawSarvamKey && !rawSarvamKey.includes("PASTE_YOUR_SARVAM_API_KEY_HERE")) ? rawSarvamKey.trim() : "";
+  return transcribeWithSarvam({
+    audioBuffer: payload.audioBuffer,
+    mimeType: payload.mimeType,
+    language: typeof payload.language === "string" ? payload.language : reminderLanguage,
+    apiKey: sarvamApiKey
+  });
+});
+
+ipcMain.handle("cat:synthesize-speech", async (event, payload) => {
+  if (!isWindowSender(event, catWindow)) return { ok: false, error: "Audio synthesis is not available from this window.", fallback: true };
+  if (!payload || typeof payload !== "object") return { ok: false, error: "Invalid speech synthesis request.", fallback: true };
+
+  loadFreshEnv();
+
+  const rawFishKey = process.env.FISH_AUDIO_API_KEY || "";
+  const fishApiKey = (rawFishKey && !rawFishKey.includes("PASTE_YOUR_FISH_AUDIO_API_KEY_HERE")) ? rawFishKey.trim() : "";
+  const voiceId = process.env.FISH_AUDIO_VOICE_ID ? process.env.FISH_AUDIO_VOICE_ID.trim() : "";
+  const model = process.env.FISH_AUDIO_MODEL ? process.env.FISH_AUDIO_MODEL.trim() : "s2.1-pro-free";
+
+  if (!fishApiKey) {
+    console.info("[Voice] Fallback TTS: used because Fish Audio is not configured in .env");
+    return { ok: false, error: "FISH_AUDIO_API_KEY is not configured.", fallback: true };
+  }
+
+  console.info(`[Voice] Fish Audio: request started (text length: ${payload.text?.length || 0}, emotion: ${payload.emotion || "neutral"}, voice: ${voiceId || "default cartoon cat"})`);
+
+  const result = await synthesizeWithFishAudio({
+    text: payload.text,
+    emotion: payload.emotion,
+    speed: payload.speed,
+    pitch: payload.pitch,
+    apiKey: fishApiKey,
+    voiceId,
+    model
+  });
+
+  if (result.ok && result.audioBuffer) {
+    console.info(`[Voice] Fish Audio: synthesis successful (${result.audioBuffer.length} bytes, format: ${result.format || "mp3"})`);
+    return {
+      ok: true,
+      audioBuffer: result.audioBuffer,
+      audioData: result.audioBuffer.toString("base64"),
+      mimeType: result.mimeType || "audio/mpeg"
+    };
+  }
+
+  console.warn(`[Voice] Fish Audio: request failed — ${result.error || "unknown error"}`);
+  console.info(`[Voice] Fallback TTS: used because Fish Audio failed`);
+  return {
+    ok: false,
+    error: result.error || "Audio synthesis failed",
+    fallback: true
+  };
+});
+
+const activeSpeechStreams = new Map();
+
+ipcMain.handle("cat:cancel-speech-stream", (event, streamId) => {
+  if (!isWindowSender(event, catWindow)) return false;
+  const controller = activeSpeechStreams.get(streamId);
+  if (controller) {
+    try { controller.abort(); } catch (_) {}
+    activeSpeechStreams.delete(streamId);
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle("cat:synthesize-speech-stream", async (event, payload) => {
+  if (!isWindowSender(event, catWindow)) return { ok: false, error: "Audio synthesis is not available from this window.", fallback: true };
+  if (!payload || typeof payload !== "object") return { ok: false, error: "Invalid speech synthesis request.", fallback: true };
+
+  loadFreshEnv();
+
+  const rawFishKey = process.env.FISH_AUDIO_API_KEY || "";
+  const fishApiKey = (rawFishKey && !rawFishKey.includes("PASTE_YOUR_FISH_AUDIO_API_KEY_HERE")) ? rawFishKey.trim() : "";
+  const voiceId = process.env.FISH_AUDIO_VOICE_ID ? process.env.FISH_AUDIO_VOICE_ID.trim() : "";
+  const model = process.env.FISH_AUDIO_MODEL ? process.env.FISH_AUDIO_MODEL.trim() : "s2.1-pro-free";
+
+  if (!fishApiKey) {
+    console.info("[Voice] Fallback TTS: used because Fish Audio is not configured in .env");
+    console.info("[Voice] [Diagnostics] fallback → browser speech synthesis (reason: FISH_AUDIO_API_KEY is not configured in .env)");
+    return { ok: false, error: "FISH_AUDIO_API_KEY is not configured.", fallback: true };
+  }
+
+  const streamId = payload.streamId || randomUUID();
+  const abortController = new AbortController();
+  activeSpeechStreams.set(streamId, abortController);
+
+  console.info(`[Voice] [Timing] Fish Audio streaming request initiated (streamId: ${streamId}, length: ${payload.text?.length || 0}, emotion: ${payload.emotion || "neutral"}, voice: ${voiceId || "default cartoon cat"})`);
+
+  const streamPromise = streamFishAudio({
+    text: payload.text,
+    emotion: payload.emotion,
+    speed: payload.speed,
+    pitch: payload.pitch,
+    apiKey: fishApiKey,
+    voiceId,
+    model,
+    format: payload.format || "wav",
+    latency: "balanced",
+    signal: abortController.signal,
+    onChunk: (chunkData) => {
+      if (!catWindow || catWindow.isDestroyed()) return;
+      catWindow.webContents.send("cat:speech-chunk", {
+        streamId,
+        ...chunkData,
+        chunk: chunkData.chunk ? Buffer.from(chunkData.chunk) : null
+      });
+    }
+  });
+
+  streamPromise.then(res => {
+    activeSpeechStreams.delete(streamId);
+    if (!res.ok && res.error) {
+      console.warn(`[Voice] Fish Audio: request failed — ${res.error}`);
+      console.info(`[Voice] Fallback TTS: used because Fish Audio failed`);
+      console.info(`[Voice] [Diagnostics] fallback → browser speech synthesis (reason: ${res.error})`);
+      if (catWindow && !catWindow.isDestroyed()) {
+        catWindow.webContents.send("cat:speech-chunk", {
+          streamId,
+          isError: true,
+          error: res.error,
+          fallback: true
+        });
+      }
+    }
+  }).catch(err => {
+    activeSpeechStreams.delete(streamId);
+    if (err?.name !== "AbortError") {
+      console.warn(`[Voice] Fish Audio: request failed — ${err?.message || "network error"}`);
+      console.info(`[Voice] Fallback TTS: used because Fish Audio failed`);
+      console.info(`[Voice] [Diagnostics] fallback → browser speech synthesis (reason: ${err?.message || "network error"})`);
+      if (catWindow && !catWindow.isDestroyed()) {
+        catWindow.webContents.send("cat:speech-chunk", {
+          streamId,
+          isError: true,
+          error: err?.message || "Streaming failed",
+          fallback: true
+        });
+      }
+    }
+  });
+
+  return { ok: true, streamId };
+});
+
 ipcMain.handle("cat:renderer-ready", event => {
   if (!isWindowSender(event, catWindow)) return false;
   catRendererReady = true;
+  loadFreshEnv();
+  const rawFishKey = process.env.FISH_AUDIO_API_KEY || "";
+  const hasFishKey = Boolean(rawFishKey && !rawFishKey.includes("PASTE_YOUR_FISH_AUDIO_API_KEY_HERE"));
+  if (catWindow && !catWindow.isDestroyed()) {
+    catWindow.webContents.send("cat:voice-config", { provider: "fish-audio", enabled: hasFishKey });
+  }
   flushPendingMessages();
   return true;
 });
